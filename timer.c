@@ -12,6 +12,8 @@ __bit __at (0x96) SEG_OFF;
 
 unsigned char SS = 45, MM = 36, HH = 17;
 
+unsigned char display_values[6] = {0};
+
 const unsigned char patterns[] = {
     0b00111111, 0b00000110,
     0b01011011, 0b01001111,
@@ -27,41 +29,29 @@ void t0_int(void) __interrupt(1) {
 
 void refresh_display() {
     static unsigned char digit = 1;
-    unsigned char value = 0;
+    static unsigned char idx = 0;
+    unsigned char value;
 
-    switch (digit) {
-        case 1:
-            value = SS % 10;
-            break;
-        case 2:
-            value = SS / 10;
-            break;
-        case 4:
-            value = MM % 10;
-            break;
-        case 8:
-            value = MM / 10;
-            break;
-        case 16:
-            value = HH % 10;
-            break;
-        case 32:
-            value = HH / 10;
-            break;
-        default:
-            value = 0;
-            break;
-    }
-
+    value = display_values[idx];
     SEG_OFF = TRUE;
     *CSDB = digit;
     *CSDS = patterns[value];
     SEG_OFF = FALSE;
 
+    idx = (idx + 1) % 6;
     digit = digit << 1;
     if (digit > 32) {
         digit = 1;
     }
+}
+
+void set_display() {
+     display_values[0] = SS % 10;
+     display_values[1] = SS / 10;
+     display_values[2] = MM % 10;
+     display_values[3] = MM / 10;
+     display_values[4] = HH % 10;
+     display_values[5] = HH / 10;
 }
 
 void increment_time() {
@@ -89,6 +79,7 @@ void main() {
     F0 = FALSE;
     P1_7 = 0;
     counter = MAX_COUNTER;
+    set_display();
 
     for (;;) {
         if (!F0) {
@@ -101,6 +92,7 @@ void main() {
            continue;
         P1_7 = !P1_7;
         increment_time();
+        set_display();
         counter = MAX_COUNTER;
     }
 }
