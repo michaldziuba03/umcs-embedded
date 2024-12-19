@@ -10,16 +10,14 @@ __xdata unsigned char *CSDS = (__xdata unsigned char *) 0xFF38;
 __xdata unsigned char *CSDB = (__xdata unsigned char *) 0xFF30;
 __bit __at (0x96) SEG_OFF;
 
-unsigned char SS = 45, MM = 36, HH = 17;
+unsigned char SS = 45, MM = 58, HH = 23;
 
 unsigned char display_values[6] = {0};
 unsigned char KBD[4] = {0, 0, 0, 0};
 
 #define ENTER 0b000001
-#define ESC 0b000010
 #define LEFT 0b100000
 #define RIGHT 0b000100
-#define UP 0b001000
 #define DOWN 0b010000
 
 const unsigned char patterns[] = {
@@ -35,31 +33,15 @@ void t0_int(void) __interrupt(1) {
     TH0 = TH0 | TH_0;
 }
 
-void refresh_display() {
-    static unsigned char digit = 1;
-    static unsigned char idx = 0;
-    unsigned char value;
-
-    value = display_values[idx];
-    SEG_OFF = TRUE;
-    *CSDB = digit;
-    *CSDS = patterns[value];
-    SEG_OFF = FALSE;
-
-    idx = (idx + 1) % 6;
-    digit = digit << 1;
-    if (digit > 32) {
-        digit = 1;
-    }
-}
+static unsigned char idx = 0;
 
 void set_display() {
-     display_values[0] = SS % 10;
-     display_values[1] = SS / 10;
-     display_values[2] = MM % 10;
-     display_values[3] = MM / 10;
-     display_values[4] = HH % 10;
-     display_values[5] = HH / 10;
+    display_values[0] = SS % 10;
+    display_values[1] = SS / 10;
+    display_values[2] = MM % 10;
+    display_values[3] = MM / 10;
+    display_values[4] = HH % 10;
+    display_values[5] = HH / 10;
 }
 
 void increment_time() {
@@ -79,15 +61,18 @@ void increment_time() {
 
 void keyboard_handler() {
     if ((KBD[0] != KBD[1]) && (KBD[0] != KBD[2]) && (KBD[0] != KBD[3])) {
-        if (KBD[0] == (ENTER | LEFT)) {
+        if (KBD[0] & LEFT) {
             HH = (HH + 1) % 24;
-        } else if (KBD[0] == (ENTER | RIGHT)) {
-            MM = (MM + 1) % 60;
-        } else if (KBD[0] == (ESC | LEFT)) {
-            HH = (HH == 0) ? 23 : (HH - 1);
-        } else if (KBD[0] == (ESC | RIGHT)) {
-            MM = (MM == 0) ? 59 : (MM - 1);
+        } else if (KBD[0] & DOWN) {
+            MM = (MM + 1);
+            if (MM > 59) {
+                MM = 0;
+                HH = (HH + 1) % 24;
+            }
+        } else if (KBD[0] & RIGHT) {
+			increment_time();
         }
+        set_display();
     }
 
     KBD[3] = KBD[2];
@@ -96,21 +81,34 @@ void keyboard_handler() {
     KBD[0] = 0;
 }
 
-void keyboard() {
-    static unsigned char kbd_mask = 0b00000001;
-    static unsigned char kbd_idx = 0;
+void refresh_display() {
+    static unsigned char mask = 1;
+    unsigned char value;
 
-    kbd_idx++;
+    value = display_values[idx];
+    SEG_OFF = TRUE;
+    *CSDB = mask;
+    *CSDS = patterns[value];
+	SEG_OFF = FALSE;
+
     if (P3_5) {
-        KBD[0] |= kbd_mask;
+        KBD[0] |= mask;
     }
-    kbd_mask <<= 1;
-    if (kbd_mask == 0b1000000) {
-        kbd_idx = 0;
-        kbd_mask = 0b0000001;
+
+    idx = (idx + 1) % 6;
+    mask = mask << 1;
+	if (mask == 32) {
         if (KBD[0] != 0) {
             keyboard_handler();
+        } else {
+         	KBD[0] = 0;
+			KBD[1] = 0;
+			KBD[2] = 0;
+			KBD[3] = 0;
         }
+    }
+    else if (mask > 32) {
+        mask = 1;
     }
 }
 
@@ -128,14 +126,13 @@ void main() {
 
     for (;;) {
         if (!F0) {
-           continue;
+            continue;
         }
         F0 = FALSE;
         refresh_display();
-        keyboard();
         counter--;
         if (counter)
-           continue;
+            continue;
         P1_7 = !P1_7;
         increment_time();
         set_display();
