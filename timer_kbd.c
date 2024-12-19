@@ -13,10 +13,7 @@ __bit __at (0x96) SEG_OFF;
 unsigned char SS = 45, MM = 36, HH = 17;
 
 unsigned char display_values[6] = {0};
-
-unsigned char KEYBOARD[4] = {0, 0, 0, 0};
-unsigned char ACTIVE_KEYBOARD_DISPLAY_BIT = 0b00000001;
-unsigned char ACTIVE_KEYBOARD_DISPLAY_INDEX = 0;
+unsigned char KBD[4] = {0, 0, 0, 0};
 
 #define ENTER 0b000001
 #define ESC 0b000010
@@ -81,34 +78,37 @@ void increment_time() {
 }
 
 void keyboard_handler() {
-    if ((KEYBOARD[0] != KEYBOARD[1]) && (KEYBOARD[0] != KEYBOARD[2]) && (KEYBOARD[0] != KEYBOARD[3])) {
-        if (KEYBOARD[0] == (ENTER | LEFT)) {
+    if ((KBD[0] != KBD[1]) && (KBD[0] != KBD[2]) && (KBD[0] != KBD[3])) {
+        if (KBD[0] == (ENTER | LEFT)) {
             HH = (HH + 1) % 24;
-        } else if (KEYBOARD[0] == (ENTER | RIGHT)) {
+        } else if (KBD[0] == (ENTER | RIGHT)) {
             MM = (MM + 1) % 60;
-        } else if (KEYBOARD[0] == (ESC | LEFT)) {
+        } else if (KBD[0] == (ESC | LEFT)) {
             HH = (HH == 0) ? 23 : (HH - 1);
-        } else if (KEYBOARD[0] == (ESC | RIGHT)) {
+        } else if (KBD[0] == (ESC | RIGHT)) {
             MM = (MM == 0) ? 59 : (MM - 1);
         }
     }
 
-    KEYBOARD[3] = KEYBOARD[2];
-    KEYBOARD[2] = KEYBOARD[1];
-    KEYBOARD[1] = KEYBOARD[0];
-    KEYBOARD[0] = 0;
+    KBD[3] = KBD[2];
+    KBD[2] = KBD[1];
+    KBD[1] = KBD[0];
+    KBD[0] = 0;
 }
 
 void keyboard() {
-    ACTIVE_KEYBOARD_DISPLAY_INDEX++;
+    static unsigned char kbd_mask = 0b00000001;
+    static unsigned char kbd_idx = 0;
+
+    kbd_idx++;
     if (P3_5) {
-        KEYBOARD[0] |= ACTIVE_KEYBOARD_DISPLAY_BIT;
+        KBD[0] |= kbd_mask;
     }
-    ACTIVE_KEYBOARD_DISPLAY_BIT <<= 1;
-    if (ACTIVE_KEYBOARD_DISPLAY_BIT == 0b1000000) {
-        ACTIVE_KEYBOARD_DISPLAY_INDEX = 0;
-        ACTIVE_KEYBOARD_DISPLAY_BIT = 0b0000001;
-        if (KEYBOARD[0] != 0) {
+    kbd_mask <<= 1;
+    if (kbd_mask == 0b1000000) {
+        kbd_idx = 0;
+        kbd_mask = 0b0000001;
+        if (KBD[0] != 0) {
             keyboard_handler();
         }
     }
